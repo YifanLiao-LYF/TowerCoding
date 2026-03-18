@@ -1,0 +1,4 @@
+repository "AncientTower@tj_wechat_os_qy058kment8orjtqh3_z5htz4@cloud.cn"
+  path "/"
+    br "/main"
+    co "/main"
