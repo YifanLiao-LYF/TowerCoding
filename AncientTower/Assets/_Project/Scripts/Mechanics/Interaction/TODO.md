@@ -1,0 +1,1 @@
+TODO: 编写交互机制相关脚本（InteractableBase、PhotoSpot、TouchTrigger等）

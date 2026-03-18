@@ -1,0 +1,1 @@
+TODO: 创建解谜配置数据（如RidgePuzzle_Config、FloorPuzzle_Config等）

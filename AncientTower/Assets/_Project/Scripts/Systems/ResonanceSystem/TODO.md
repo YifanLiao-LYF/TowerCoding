@@ -1,0 +1,1 @@
+TODO: 编写共鸣系统相关脚本（ResonanceTrigger、ResonanceMemory、TimelineController等）

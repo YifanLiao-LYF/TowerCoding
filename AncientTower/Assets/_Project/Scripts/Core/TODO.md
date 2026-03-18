@@ -1,0 +1,1 @@
+TODO: 编写核心管理器脚本（GameManager、SceneLoader、InputHandler等）

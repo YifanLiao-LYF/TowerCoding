@@ -1,0 +1,1 @@
+TODO: 编写笔记系统相关脚本（NoteManager、NoteData、NoteUI等）
