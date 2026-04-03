@@ -233,7 +233,7 @@ Transform:
   m_GameObject: {fileID: 549263682}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 5.039578, y: 0.50530005, z: -13}
+  m_LocalPosition: {x: 3.4415393, y: 0.50530005, z: -13}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1951,7 +1951,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!212 &1505650027
 SpriteRenderer:
   m_ObjectHideFlags: 0
@@ -2272,7 +2272,7 @@ MonoBehaviour:
   boxViewPanel: {fileID: 2000209301}
   boxCameraUI: {fileID: 1982168359}
   boxDisplay: {fileID: 2044624951}
-  manuscript: {fileID: 0}
+  manuscript: {fileID: 1505650026}
   dragDistance: 0.5
   manuscriptViewDistance: 1.5
 --- !u!4 &1517640194 stripped
@@ -2799,7 +2799,7 @@ PrefabInstance:
       objectReference: {fileID: 729257968}
     - target: {fileID: 6785965639067510793, guid: 4516e44b668d2654381b8777b3347e76, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 5.039578
+      value: 3.4415393
       objectReference: {fileID: 0}
     - target: {fileID: 6785965639067510793, guid: 4516e44b668d2654381b8777b3347e76, type: 3}
       propertyPath: m_LocalPosition.y

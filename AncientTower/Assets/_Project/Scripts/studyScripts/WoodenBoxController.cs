@@ -19,6 +19,8 @@ public class WoodenBoxController : MonoBehaviour
     private bool isManuscriptView = false; // 是否处于手札查看模式
     private int currentStep = 0;
     private readonly string[] stepOrder = { "001", "002", "003", "004", "005", "006" };
+    private Quaternion originalManuscriptRotation;
+    private Vector3 originalManuscriptScale;
 
     // 保存盒身原有的渲染器和碰撞器状态（用于恢复）
     private Renderer[] boxRenderers;
@@ -55,6 +57,13 @@ public class WoodenBoxController : MonoBehaviour
     public void EnterBoxView()
     {
         if (isInBoxView) return;
+
+        // 强制结束任何正在进行的对话树
+        if (DialogueTreeManager.Instance != null)
+            DialogueTreeManager.Instance.EndDialogue();
+        if (DialogueManager.Instance != null)
+            DialogueManager.Instance.EndDialogue();
+
         isInBoxView = true;
         currentStep = 0;
         isManuscriptView = false;
@@ -87,11 +96,13 @@ public class WoodenBoxController : MonoBehaviour
 
         var router = FindObjectOfType<ClickRouter2D>();
         if (router != null) router.cam = Camera.main; // 恢复为主相机
+
     }
 
     // 注意：此方法必须是 public，以便按钮调用
     public void OnBoxClick()
     {
+        Debug.Log("OnBoxClick triggered");
         if (!isInBoxView) return;
 
         // 解谜完成后，不再处理零件拖拽，让手札等物体通过 ClickRouter2D 处理
@@ -152,13 +163,15 @@ public class WoodenBoxController : MonoBehaviour
         if (manuscript != null)
         {
             manuscript.SetActive(true);
-            // 重置手札的对话起始 ID 为初始值（例如 100，用户需根据对话树调整）
+
             var clickable = manuscript.GetComponent<ClickableDialogue>();
             if (clickable != null)
-                clickable.startDialogueId = 100;
+            {
+                clickable.startDialogueId = 15;
+                Debug.Log($"手札已激活，对话起始ID设置为 {clickable.startDialogueId}");
+            }
         }
-        //DialogueManager.Instance.StartDialogue("系统", new string[] { "盒子打开了，手札出现了。" });
-        // 不自动退出，等待用户点击手札
+
         if (boxDisplay != null)
         {
             Button btn = boxDisplay.GetComponent<Button>();
@@ -179,6 +192,13 @@ public class WoodenBoxController : MonoBehaviour
         if (isManuscriptView) return;
 
         isManuscriptView = true;
+
+        originalManuscriptRotation = manuscript.transform.localRotation;
+        originalManuscriptScale = manuscript.transform.localScale;
+
+        // 调整手札：旋转90度（绕Z轴，使横向显示）并缩小到原来的0.7倍
+        manuscript.transform.localRotation = Quaternion.Euler(0, 90, 0);
+        manuscript.transform.localScale = originalManuscriptScale * 0.05f;
 
         // 隐藏盒身的所有渲染器和碰撞器（排除手札自身及其子物体）
         foreach (var rend in boxRenderers)
@@ -231,6 +251,13 @@ public class WoodenBoxController : MonoBehaviour
         {
             if (col.gameObject != manuscript && !col.transform.IsChildOf(manuscript.transform))
                 col.enabled = true;
+        }
+
+        // 恢复手札的旋转和缩放
+        if (manuscript != null)
+        {
+            manuscript.transform.localRotation = originalManuscriptRotation;
+            manuscript.transform.localScale = originalManuscriptScale;
         }
 
         isManuscriptView = false;

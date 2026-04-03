@@ -1,0 +1,13 @@
+fileFormatVersion: 2
+guid: 159a609e40436ec42ad3005949b4c736
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - tabletPanel: {instanceID: 0}
+  - overlay: {instanceID: 0}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

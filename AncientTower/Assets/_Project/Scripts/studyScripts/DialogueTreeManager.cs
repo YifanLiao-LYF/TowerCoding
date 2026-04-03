@@ -55,7 +55,6 @@ public class DialogueTreeManager : MonoBehaviour
             };
             nodes[id] = node;
         }
-        //Debug.Log($"解析完成，共 {nodes.Count} 个节点");
     }
 
     int SafeParseInt(string s)
@@ -88,17 +87,19 @@ public class DialogueTreeManager : MonoBehaviour
         switch (node.type)
         {
             case "#":
-                // 检查是否需要长按 Q
+                // 先处理 effect（除 LongPressQ 外立即执行）
+                if (!string.IsNullOrEmpty(node.effect) && node.effect != "LongPressQ")
+                {
+                    ApplyEffect(node.effect, node.target);  // 传递 target
+                }
+
                 if (node.effect == "LongPressQ")
                 {
-                    // 显示对话内容
                     DialogueManager.Instance.StartDialogue(node.speaker, new string[] { node.content });
-                    // 启动长按流程（不订阅 onNextClicked）
                     StartLongPressQ(node.nextId);
                 }
                 else
                 {
-                    // 普通对话
                     DialogueManager.Instance.StartDialogue(node.speaker, new string[] { node.content });
                     DialogueManager.Instance.onNextClicked += OnDialogueNext;
                 }
@@ -116,11 +117,13 @@ public class DialogueTreeManager : MonoBehaviour
                 List<string> options = new List<string>();
                 List<int> targets = new List<int>();
                 List<string> effects = new List<string>();
+                List<string> effectTargets = new List<string>();
                 foreach (var cn in choiceNodes)
                 {
                     options.Add(cn.content);
                     targets.Add(cn.nextId);
                     effects.Add(cn.effect);
+                    effectTargets.Add(cn.target);
                 }
 
                 if (ChoiceDialogueManager.Instance == null)
@@ -132,14 +135,14 @@ public class DialogueTreeManager : MonoBehaviour
                 ChoiceDialogueManager.Instance.ShowChoice("", options.ToArray(), (index) =>
                 {
                     if (!string.IsNullOrEmpty(effects[index]))
-                        ApplyEffect(effects[index]);
+                        ApplyEffect(effects[index], effectTargets[index]);  // 传递 target
                     currentNodeId = targets[index];
                     ProcessCurrentNode();
                 });
                 break;
             case "END":
-                DialogueManager.Instance.EndDialogue();   // 关闭对话面板
-                EndDialogue();                            // 清理树管理器内部状态
+                DialogueManager.Instance.EndDialogue();
+                EndDialogue();
                 break;
             default:
                 EndDialogue();
@@ -175,20 +178,14 @@ public class DialogueTreeManager : MonoBehaviour
         ProcessCurrentNode();
     }
 
-    /// <summary>
-    /// 启动长按 Q 流程
-    /// </summary>
-    /// <param name="nextId">长按完成后的跳转节点 ID</param>
     void StartLongPressQ(int nextId)
     {
-        // 隐藏下一句按钮
         if (DialogueManager.Instance.nextButton != null)
             DialogueManager.Instance.nextButton.SetActive(false);
 
         if (longPressHandler == null)
         {
-            Debug.LogError("未在 Inspector 中指定 LongPressQHandler，请将圆环上的组件拖入该字段");
-            // 降级：直接跳转
+            Debug.LogError("未在 Inspector 中指定 LongPressQHandler");
             currentNodeId = nextId;
             ProcessCurrentNode();
             return;
@@ -203,7 +200,10 @@ public class DialogueTreeManager : MonoBehaviour
         });
     }
 
-    void ApplyEffect(string effect)
+    /// <summary>
+    /// 执行效果（支持 target 参数）
+    /// </summary>
+    void ApplyEffect(string effect, string target = "")
     {
         switch (effect)
         {
@@ -219,10 +219,20 @@ public class DialogueTreeManager : MonoBehaviour
                 WoodenBoxController boxCtrl2 = FindObjectOfType<WoodenBoxController>();
                 if (boxCtrl2 != null) boxCtrl2.ExitBoxView();
                 break;
+            case "FadeToNewBackground":
+                if (BackgroundManager.Instance != null)
+                    BackgroundManager.Instance.FadeToNewBackground();
+                break;
+            case "LoadScene":
+                if (BackgroundManager.Instance != null && !string.IsNullOrEmpty(target))
+                    BackgroundManager.Instance.FadeAndLoadScene(target);
+                else
+                    Debug.LogError("LoadScene 效果缺少场景名称参数");
+                break;
         }
     }
 
-    void EndDialogue()
+    public void EndDialogue()
     {
         isInDialogue = false;
         if (ChoiceDialogueManager.Instance != null)
