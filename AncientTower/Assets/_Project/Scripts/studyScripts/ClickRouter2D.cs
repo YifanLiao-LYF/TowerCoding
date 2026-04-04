@@ -40,9 +40,6 @@ public class ClickRouter2D : MonoBehaviour
         RaycastHit[] hits3D = Physics.RaycastAll(ray, Mathf.Infinity, interactMask);
         foreach (var hit in hits3D)
         {
-            // 如果该物体有 DragHandler，则跳过（让拖拽逻辑处理）
-            if (hit.collider.GetComponent<DragHandler>() != null)
-                continue;
 
             var c = hit.collider.GetComponent<ClickableDialogue>();
             if (c != null && c.priority > bestPriority)

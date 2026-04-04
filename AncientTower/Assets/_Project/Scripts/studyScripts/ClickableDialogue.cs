@@ -9,7 +9,7 @@ public class ClickableDialogue : MonoBehaviour
     public int startDialogueId = -1;   // 设置为 >=0 时使用对话树
 
     // 供点击路由器调用
-    public void TriggerDialogue()
+    public virtual void TriggerDialogue()
     {
         if (DialogueManager.Instance == null) return;
 

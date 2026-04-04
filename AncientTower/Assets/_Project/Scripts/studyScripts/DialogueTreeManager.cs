@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class DialogueTreeManager : MonoBehaviour
 {
@@ -211,13 +212,22 @@ public class DialogueTreeManager : MonoBehaviour
                 WoodenBoxController box = FindObjectOfType<WoodenBoxController>();
                 if (box != null) box.EnterBoxView();
                 break;
-            case "ShowManuscriptView":
-                WoodenBoxController boxCtrl = FindObjectOfType<WoodenBoxController>();
-                if (boxCtrl != null) boxCtrl.ShowManuscriptView();
-                break;
+           
             case "ExitBoxView":
                 WoodenBoxController boxCtrl2 = FindObjectOfType<WoodenBoxController>();
                 if (boxCtrl2 != null) boxCtrl2.ExitBoxView();
+                break;
+            case "ExitAndShowManuscript":   // 新增组合效果
+                WoodenBoxController box3 = FindObjectOfType<WoodenBoxController>();
+                if (box3 != null)
+                {
+                    box3.ExitBoxView();        // 先退出盒子视图
+                    box3.ShowManuscriptPanel(); // 再显示手札面板
+                }
+                break;
+            case "ShowManuscriptPanel":
+                WoodenBoxController box2 = FindObjectOfType<WoodenBoxController>();
+                if (box2 != null) box2.ShowManuscriptPanel();
                 break;
             case "FadeToNewBackground":
                 if (BackgroundManager.Instance != null)
@@ -228,6 +238,14 @@ public class DialogueTreeManager : MonoBehaviour
                     BackgroundManager.Instance.FadeAndLoadScene(target);
                 else
                     Debug.LogError("LoadScene 效果缺少场景名称参数");
+                break;
+            case "LoadScene2":
+                // 临时用索引2来加载ZoomingInTower1场景
+                BackgroundManager.Instance.FadeAndLoadScene2(target);
+                break;
+            case "CloseManuscriptPanel":
+                box = FindObjectOfType<WoodenBoxController>();
+                if (box != null) box.CloseManuscriptPanel();
                 break;
         }
     }

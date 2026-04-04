@@ -1,39 +1,117 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.SceneManagement;  // 新增：用于加载场景
+using UnityEngine.SceneManagement;
 
 public class BackgroundManager : MonoBehaviour
 {
     public static BackgroundManager Instance;
 
-    [Header("背景图片")]
+    [Header("背景图片（同场景切换）")]
     public GameObject oldBackground;
     public GameObject newBackground;
 
-    [Header("淡入淡出")]
-    public Image fadeImage;
+    [Header("淡入淡出设置")]
     public float fadeDuration = 1f;
 
-    [Header("相机设置")]
-    public float wideOrthoSize = 6.5f;   // 远景相机大小
+    [Header("相机设置（同场景切换）")]
+    public float wideOrthoSize = 6.5f;
 
+    private Image fadeImage;
+    private Canvas fadeCanvas;
     private Vector3 originalCameraPosition;
 
     void Awake()
     {
-        Instance = this;
-        if (fadeImage != null)
+        if (Instance == null)
         {
-            fadeImage.color = new Color(0, 0, 0, 0);
-            fadeImage.raycastTarget = false;   // 初始不阻挡
-            fadeImage.gameObject.SetActive(false); // 初始未激活
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
         }
+        else
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        InitializeFadeImage();
+        SceneManager.sceneLoaded += OnSceneLoaded;  // 监听场景加载
+        // 首次绑定当前场景的背景（针对第一个场景）
+        BindCurrentSceneBackgrounds();
+        RecordCameraPosition();
+    }
+
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        // 每次场景加载完成后，重新绑定背景物体并更新相机位置
+        BindCurrentSceneBackgrounds();
+        RecordCameraPosition();
+    }
+
+    private void BindCurrentSceneBackgrounds()
+    {
+        // 优先使用 Inspector 中手动拖拽的物体（如果有），否则按名称自动查找
+        if (oldBackground == null)
+            oldBackground = GameObject.Find("OldBackground");
+        if (newBackground == null)
+            newBackground = GameObject.Find("NewBackground");
+
+        if (oldBackground == null)
+            Debug.LogWarning($"场景 {SceneManager.GetActiveScene().name} 中未找到名为 'OldBackground' 的物体，请在 Inspector 中手动指定");
+        if (newBackground == null)
+            Debug.LogWarning($"场景 {SceneManager.GetActiveScene().name} 中未找到名为 'NewBackground' 的物体，请在 Inspector 中手动指定");
+    }
+
+    private void RecordCameraPosition()
+    {
         if (Camera.main != null)
             originalCameraPosition = Camera.main.transform.position;
     }
 
-    // 原有方法：切换背景并重置相机（黑屏期间完成重置）
+    private void InitializeFadeImage()
+    {
+        // 尝试使用场景中已有的 FadeImage（兼容旧场景）
+        Canvas existingCanvas = FindObjectOfType<Canvas>();
+        if (existingCanvas != null)
+        {
+            fadeImage = existingCanvas.GetComponentInChildren<Image>();
+            if (fadeImage != null)
+            {
+                fadeImage.gameObject.SetActive(false);
+                return;
+            }
+        }
+        CreateFadeCanvasAndImage();
+    }
+
+    private void CreateFadeCanvasAndImage()
+    {
+        GameObject canvasObj = new GameObject("FadeCanvas");
+        canvasObj.transform.SetParent(transform);
+        fadeCanvas = canvasObj.AddComponent<Canvas>();
+        fadeCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        fadeCanvas.sortingOrder = 30000;
+
+        var scaler = canvasObj.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920, 1080);
+
+        canvasObj.AddComponent<GraphicRaycaster>();
+
+        GameObject imageObj = new GameObject("FadeImage");
+        imageObj.transform.SetParent(canvasObj.transform, false);
+        RectTransform rect = imageObj.AddComponent<RectTransform>();
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.sizeDelta = Vector2.zero;
+
+        fadeImage = imageObj.AddComponent<Image>();
+        fadeImage.color = new Color(0, 0, 0, 0);
+        fadeImage.raycastTarget = true;
+        fadeImage.gameObject.SetActive(false);
+    }
+
+    // ========== 同场景背景切换 ==========
     public void FadeToNewBackground()
     {
         StartCoroutine(FadeOutAndSwitch());
@@ -41,13 +119,12 @@ public class BackgroundManager : MonoBehaviour
 
     IEnumerator FadeOutAndSwitch()
     {
-        if (fadeImage != null)
-        {
-            fadeImage.gameObject.SetActive(true);
-            fadeImage.raycastTarget = true;   // 开始阻挡点击
-            fadeImage.color = new Color(0, 0, 0, 0);
-        }
-        // 1. 淡出（变黑）
+        if (fadeImage == null) yield break;
+
+        fadeImage.gameObject.SetActive(true);
+        fadeImage.raycastTarget = true;
+        fadeImage.color = new Color(0, 0, 0, 0);
+
         float elapsed = 0f;
         Color color = fadeImage.color;
         while (elapsed < fadeDuration)
@@ -58,18 +135,17 @@ public class BackgroundManager : MonoBehaviour
             yield return null;
         }
 
-        // 2. 画面全黑 → 重置相机（用户看不见跳变）
+        // 重置相机（使用当前场景记录的相机位置）
         if (Camera.main != null)
         {
-            Camera.main.orthographicSize = 5f;
+            Camera.main.orthographicSize = wideOrthoSize;
             Camera.main.transform.position = originalCameraPosition;
         }
 
-        // 3. 切换背景
+        // 切换背景
         if (oldBackground != null) oldBackground.SetActive(false);
         if (newBackground != null) newBackground.SetActive(true);
 
-        // 4. 淡入（恢复画面）
         elapsed = 0f;
         while (elapsed < fadeDuration)
         {
@@ -80,27 +156,29 @@ public class BackgroundManager : MonoBehaviour
         }
         fadeImage.color = new Color(color.r, color.g, color.b, 0);
 
-        // 可选：淡入结束后禁用 FadeImage（避免阻挡点击，但保留透明也可）
-        if (fadeImage != null)
-        {
-            fadeImage.raycastTarget = false;  // 恢复点击
-            fadeImage.gameObject.SetActive(false);
-        }
+        fadeImage.raycastTarget = false;
+        fadeImage.gameObject.SetActive(false);
     }
 
-    // 新增方法：渐黑后加载指定场景
+    // ========== 跨场景淡入淡出 ==========
     public void FadeAndLoadScene(string sceneName)
     {
-        StartCoroutine(FadeOutAndLoadScene(sceneName));
+        StartCoroutine(FadeOutLoadAndFadeIn(sceneName));
     }
 
-    private IEnumerator FadeOutAndLoadScene(string sceneName)
+    public void FadeAndLoadScene2(string sceneName)
     {
-        // 确保 FadeImage 激活
-        if (fadeImage != null && !fadeImage.gameObject.activeSelf)
-            fadeImage.gameObject.SetActive(true);
+        FadeAndLoadScene(sceneName);
+    }
 
-        // 淡出到全黑
+    private IEnumerator FadeOutLoadAndFadeIn(string sceneName)
+    {
+        if (fadeImage == null) yield break;
+
+        fadeImage.gameObject.SetActive(true);
+        fadeImage.raycastTarget = true;
+        fadeImage.color = new Color(0, 0, 0, 0);
+
         float elapsed = 0f;
         Color color = fadeImage.color;
         while (elapsed < fadeDuration)
@@ -110,17 +188,26 @@ public class BackgroundManager : MonoBehaviour
             fadeImage.color = new Color(color.r, color.g, color.b, alpha);
             yield return null;
         }
-        // 确保完全不透明（保险）
         fadeImage.color = new Color(color.r, color.g, color.b, 1);
 
-        // 可选：短暂停顿，让黑屏持续一瞬间
         yield return new WaitForSeconds(0.1f);
 
-        // 异步加载场景（不卡顿）
         AsyncOperation asyncLoad = SceneManager.LoadSceneAsync(sceneName);
         while (!asyncLoad.isDone)
             yield return null;
 
-        // 场景切换后，新场景的 BackgroundManager 会接管，这里无需额外操作
+        // 加载完成后淡入
+        elapsed = 0f;
+        while (elapsed < fadeDuration)
+        {
+            elapsed += Time.deltaTime;
+            float alpha = Mathf.Lerp(1, 0, elapsed / fadeDuration);
+            fadeImage.color = new Color(color.r, color.g, color.b, alpha);
+            yield return null;
+        }
+        fadeImage.color = new Color(color.r, color.g, color.b, 0);
+
+        fadeImage.raycastTarget = false;
+        fadeImage.gameObject.SetActive(false);
     }
 }

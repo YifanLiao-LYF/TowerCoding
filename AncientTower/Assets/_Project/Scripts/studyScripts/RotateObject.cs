@@ -34,11 +34,6 @@ public class RotateObject : MonoBehaviour
             bool hasDraggable = false;
             foreach (var hit in hits)
             {
-                if (hit.collider.GetComponent<DragHandler>() != null)
-                {
-                    hasDraggable = true;
-                    break;
-                }
             }
 
             if (hasDraggable)
