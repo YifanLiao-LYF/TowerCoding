@@ -167,3 +167,6 @@ desktop.ini
 .yarn/
 .cache/
 .vscode/
+
+# 忽略 Plastic SCM 元数据文件
+plastic.*
