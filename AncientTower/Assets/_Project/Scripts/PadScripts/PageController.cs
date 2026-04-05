@@ -8,10 +8,9 @@ using System.Collections.Generic;
 public class HorizontalPageTurn : MonoBehaviour, IBeginDragHandler, IEndDragHandler, IDragHandler
 {
     [Header("翻页设置")]
-    [SerializeField] private float snapSpeed = 10f;           // 吸附动画速度
-    [SerializeField] private float dragThreshold = 30f;       // 拖拽翻页阈值（像素）
-    [SerializeField] private float minDragVelocity = 100f;    // 最小滑动速度，超过则强制翻页
-    [SerializeField] private bool enableDragThreshold = true;  // 是否启用阈值判断
+    [SerializeField] private float snapSpeed = 800f;           // 吸附动画速度（值越大动画越快）
+    [SerializeField] private float minDragVelocity = 100f;     // 最小滑动速度，超过则强制翻页
+    [SerializeField] [Range(0.3f, 0.7f)] private float pageThreshold = 0.5f;  // 翻页阈值（页面宽度的百分比）
     
     [Header("页码显示（可选）")]
     [SerializeField] private Text pageText;                   // 显示当前页/总页数
@@ -233,9 +232,9 @@ public class HorizontalPageTurn : MonoBehaviour, IBeginDragHandler, IEndDragHand
         Vector2 startPos = contentRect.anchoredPosition;
         Vector2 targetPos = new Vector2(targetX, contentRect.anchoredPosition.y);
         
-        // 根据距离计算动画时长
+        // 使用 snapSpeed 控制吸附速度，值越大动画越快
         float distance = Mathf.Abs(startPos.x - targetX);
-        float duration = Mathf.Clamp(distance / 800f, 0.1f, 0.4f);
+        float duration = Mathf.Clamp(distance / snapSpeed, 0.1f, 0.5f);
         float elapsed = 0;
         
         // 停止惯性
@@ -377,57 +376,66 @@ public class HorizontalPageTurn : MonoBehaviour, IBeginDragHandler, IEndDragHand
         float dragDelta = contentRect.anchoredPosition.x - dragStartPosX;
         float dragVelocity = scrollRect.velocity.x;
         
-        Debug.Log($"拖拽结束 - 位移: {dragDelta}, 速度: {dragVelocity}");
+        Debug.Log($"拖拽结束 - 位移: {dragDelta}, 速度: {dragVelocity}, 当前页: {currentPage}");
         
         // 检查是否超出边界
         float minX = GetTargetPositionX(totalPages - 1);
         float maxX = GetTargetPositionX(0);
         float currentX = contentRect.anchoredPosition.x;
         
-        // 如果超出边界太多，直接吸附到边界页
-        if (currentX > maxX + pageWidth * 0.3f)
+        // 如果超出边界过多（超过30%页宽），直接吸附到边界页
+        float boundaryThreshold = pageWidth * 0.3f;
+        if (currentX > maxX + boundaryThreshold)
         {
             SnapToPage(0);
             return;
         }
-        else if (currentX < minX - pageWidth * 0.3f)
+        else if (currentX < minX - boundaryThreshold)
         {
             SnapToPage(totalPages - 1);
             return;
         }
         
-        // 快速滑动时，根据方向翻页
+        // 优先判断：快速滑动时，根据速度方向强制翻页
         if (Mathf.Abs(dragVelocity) > minDragVelocity)
         {
             if (dragVelocity > 0 && CanGoPrev())
             {
+                Debug.Log("快速向右滑动 -> 上一页");
                 SnapToPage(currentPage - 1);
                 return;
             }
             else if (dragVelocity < 0 && CanGoNext())
             {
+                Debug.Log("快速向左滑动 -> 下一页");
                 SnapToPage(currentPage + 1);
                 return;
             }
         }
         
-        // 慢速拖拽，根据拖拽距离判断是否翻页
-        if (enableDragThreshold && Mathf.Abs(dragDelta) > dragThreshold)
+        // 慢速拖拽：根据拖拽距离是否超过页面宽度的阈值百分比来判断
+        float dragPercentage = Mathf.Abs(dragDelta) / pageWidth;
+        
+        if (dragPercentage >= pageThreshold)
         {
+            // 超过阈值，翻页
             if (dragDelta > 0 && CanGoPrev())
             {
+                Debug.Log($"拖拽超过{pageThreshold * 100}% -> 上一页 (位移比例: {dragPercentage:P})");
                 SnapToPage(currentPage - 1);
                 return;
             }
             else if (dragDelta < 0 && CanGoNext())
             {
+                Debug.Log($"拖拽超过{pageThreshold * 100}% -> 下一页 (位移比例: {dragPercentage:P})");
                 SnapToPage(currentPage + 1);
                 return;
             }
         }
         
-        // 否则吸附到最近页面
-        SnapToNearestPage();
+        // 未超过阈值，回弹到当前页
+        Debug.Log($"拖拽未超过{pageThreshold * 100}% -> 回弹当前页 (位移比例: {dragPercentage:P})");
+        SnapToPage(currentPage);
     }
     
     void Update()
@@ -462,6 +470,7 @@ public class HorizontalPageTurn : MonoBehaviour, IBeginDragHandler, IEndDragHand
         Debug.Log($"Content位置: {contentRect.anchoredPosition.x}");
         Debug.Log($"第一页目标位置: {GetTargetPositionX(0)}");
         Debug.Log($"最后一页目标位置: {GetTargetPositionX(totalPages - 1)}");
+        Debug.Log($"翻页阈值: {pageThreshold * 100}%");
         Debug.Log($"CanGoPrev: {CanGoPrev()}");
         Debug.Log($"CanGoNext: {CanGoNext()}");
     }
