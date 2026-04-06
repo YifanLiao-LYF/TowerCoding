@@ -1,39 +1,46 @@
 using UnityEngine;
 using UnityEngine.UI;
 using System.Collections;
+using System.Collections.Generic;
 
 public class WoodenBoxController : MonoBehaviour
 {
     [Header("UI面板")]
-    public GameObject boxViewPanel;          // 盒子视图的整体面板（包含 RawImage 等）
+    public GameObject boxViewPanel;
     public Camera boxCameraUI;
     public RawImage boxDisplay;
 
     [Header("手札全屏遮罩面板")]
-    public GameObject manuscriptPanel;       // 全屏半透明黑色面板（带 Button，内含手札图片和文字）
+    public GameObject manuscriptPanel;
 
-    [Header("动画设置（全局默认值）")]
+    [Header("手札页面（多个Image物体）")]
+    public GameObject[] manuscriptPages;
+
+    [Header("动画设置")]
     public float pullDuration = 0.3f;
     public Vector3 pullDirection = new Vector3(0, 1, 0);
     public float pullDistance = 1.5f;
 
-    [Header("手札对话内容")]
+    [Header("手札对话内容（已废弃）")]
     public string[] manuscriptDialogueLines = new string[] { "这是手札的内容。" };
 
     private bool isInBoxView = false;
-    private int currentStep = 0;
+    private int currentStep = 0;               // 仍然保留，用于顺序提示，但不用于完成判断
     private bool isPuzzleCompleted = false;
     private readonly string[] stepOrder = { "001", "002", "003", "004", "005", "006" };
     public bool HasUnlockedManuscript { get; private set; } = false;
 
+    private HashSet<string> pulledParts = new HashSet<string>();   // 防止同一零件重复拉取
+    private bool isPulling = false;
+    private bool hasCompleted = false;
+    private List<string> completedParts = new List<string>();       // 记录已正确完成的零件（按顺序）
+
     void Start()
     {
-        // 初始隐藏所有面板
         if (boxViewPanel != null) boxViewPanel.SetActive(false);
         if (boxCameraUI != null) boxCameraUI.gameObject.SetActive(false);
         if (manuscriptPanel != null) manuscriptPanel.SetActive(false);
 
-        // 为 RawImage 添加点击监听（进入盒子模式后用于点击零件或显示手札）
         if (boxDisplay != null)
         {
             var btn = boxDisplay.gameObject.GetComponent<Button>();
@@ -42,31 +49,50 @@ public class WoodenBoxController : MonoBehaviour
             btn.onClick.AddListener(OnBoxClick);
         }
 
-        // 为手札面板的 Button 添加监听（点击任意位置触发对话）
         if (manuscriptPanel != null)
         {
             Button panelBtn = manuscriptPanel.GetComponent<Button>();
-            if (panelBtn != null)
-            {
-                panelBtn.onClick.RemoveAllListeners();
-                panelBtn.onClick.AddListener(OnManuscriptPanelClicked);
-            }
-            else
-            {
-                Debug.LogWarning("ManuscriptPanel 缺少 Button 组件，无法响应点击");
-            }
+            if (panelBtn == null) panelBtn = manuscriptPanel.AddComponent<Button>();
+            panelBtn.onClick.RemoveAllListeners();
+            panelBtn.onClick.AddListener(OnManuscriptPanelClicked);
         }
+
+        ResetManuscriptPages();
+    }
+
+    public void ResetManuscriptPages()
+    {
+        if (manuscriptPages == null || manuscriptPages.Length == 0) return;
+        for (int i = 0; i < manuscriptPages.Length; i++)
+            if (manuscriptPages[i] != null)
+                manuscriptPages[i].SetActive(i == 0);
+    }
+
+    public void SetManuscriptPage(int page)
+    {
+        if (manuscriptPages == null || manuscriptPages.Length == 0) return;
+        if (page < 1 || page >= manuscriptPages.Length)
+        {
+            Debug.LogWarning($"页码 {page} 超出范围（1~{manuscriptPages.Length - 1}）");
+            return;
+        }
+        for (int i = 0; i < manuscriptPages.Length; i++)
+            if (manuscriptPages[i] != null)
+                manuscriptPages[i].SetActive(i == page);
+    }
+
+    private void OnManuscriptPanelClicked()
+    {
+        Debug.Log("点击手札面板，推进对话");
+        DialogueManager.Instance?.NextOrClose();
     }
 
     public void EnterBoxView()
     {
         if (isInBoxView) return;
 
-        // 结束可能存在的对话
-        if (DialogueTreeManager.Instance != null)
-            DialogueTreeManager.Instance.EndDialogue();
-        if (DialogueManager.Instance != null)
-            DialogueManager.Instance.EndDialogue();
+        DialogueTreeManager.Instance?.EndDialogue();
+        DialogueManager.Instance?.EndDialogue();
 
         AdjustCameraToParts();
         boxDisplay.texture = boxCameraUI.targetTexture;
@@ -74,6 +100,10 @@ public class WoodenBoxController : MonoBehaviour
         isInBoxView = true;
         currentStep = 0;
         isPuzzleCompleted = false;
+        hasCompleted = false;
+        pulledParts.Clear();
+        completedParts.Clear();          // 清空完成记录
+        isPulling = false;
 
         boxViewPanel.SetActive(true);
         boxCameraUI.gameObject.SetActive(true);
@@ -92,7 +122,6 @@ public class WoodenBoxController : MonoBehaviour
         boxViewPanel.SetActive(false);
         boxCameraUI.gameObject.SetActive(false);
         DialogueManager.Instance.panel.SetActive(false);
-        //if (manuscriptPanel != null) manuscriptPanel.SetActive(false);
 
         var router = FindObjectOfType<ClickRouter2D>();
         if (router != null) router.cam = Camera.main;
@@ -100,42 +129,34 @@ public class WoodenBoxController : MonoBehaviour
         isInBoxView = false;
     }
 
-    // 点击 RawImage（盒子视图区域）的回调
     public void OnBoxClick()
     {
         if (!isInBoxView) return;
 
-        // 解谜完成后，显示手札面板（不再处理零件点击）
         if (isPuzzleCompleted)
         {
-            if (DialogueTreeManager.Instance != null)
-            {
-                DialogueTreeManager.Instance.StartDialogue(15);
-            }
-            else
-            {
-                Debug.LogError("DialogueTreeManager 不存在，无法启动手札对话");
-            }
+            DialogueTreeManager.Instance?.StartDialogue(15);
             return;
         }
 
-        // 未完成时处理零件点击
         if (currentStep >= stepOrder.Length) return;
 
-        // 将屏幕点击转换为 RawImage 的 UV 坐标，并发射射线检测零件
-        RectTransformUtility.ScreenPointToLocalPointInRectangle(
+        if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
             boxDisplay.rectTransform,
             Input.mousePosition,
             null,
-            out Vector2 localPoint
-        );
+            out Vector2 localPoint))
+        {
+            return;
+        }
+
         Rect rect = boxDisplay.rectTransform.rect;
         Vector2 uv = new Vector2(
             (localPoint.x - rect.x) / rect.width,
             (localPoint.y - rect.y) / rect.height
         );
-        Ray ray = boxCameraUI.ViewportPointToRay(uv);
 
+        Ray ray = boxCameraUI.ViewportPointToRay(uv);
         RaycastHit[] hits = Physics.RaycastAll(ray, Mathf.Infinity);
         if (hits.Length == 0) return;
 
@@ -150,6 +171,7 @@ public class WoodenBoxController : MonoBehaviour
                 break;
             }
         }
+
         if (targetPart != null)
             OnPartClicked(targetPart.partType);
     }
@@ -157,24 +179,45 @@ public class WoodenBoxController : MonoBehaviour
     public void OnPartClicked(string partType)
     {
         if (!isInBoxView || currentStep >= stepOrder.Length) return;
+        if (pulledParts.Contains(partType))
+        {
+            Debug.Log($"零件 {partType} 已被拉取过，忽略");
+            return;
+        }
+        if (isPulling)
+        {
+            Debug.Log($"正在播放动画，忽略点击 {partType}");
+            return;
+        }
+
         if (partType == stepOrder[currentStep])
+        {
+            Debug.Log($"正确点击 {partType}，当前步骤 {currentStep}，启动动画");
+            pulledParts.Add(partType);
             StartCoroutine(PullPartAnimation(partType));
+        }
         else
+        {
             Debug.Log($"顺序错误：需要 {stepOrder[currentStep]}，点击了 {partType}");
+        }
     }
 
     private IEnumerator PullPartAnimation(string partType)
     {
+        isPulling = true;
+        Debug.Log($"开始拉取 {partType}");
+
         Transform part = transform.Find(partType);
-        if (part == null) yield break;
+        if (part == null)
+        {
+            Debug.LogError($"未找到零件 {partType}");
+            isPulling = false;
+            yield break;
+        }
 
         PartClickHandler handler = part.GetComponent<PartClickHandler>();
-        Vector3 direction = (handler != null && handler.pullDirection != Vector3.zero)
-                            ? handler.pullDirection
-                            : pullDirection;
-        float distance = (handler != null && handler.pullDistance > 0)
-                         ? handler.pullDistance
-                         : pullDistance;
+        Vector3 direction = (handler != null && handler.pullDirection != Vector3.zero) ? handler.pullDirection : pullDirection;
+        float distance = (handler != null && handler.pullDistance > 0) ? handler.pullDistance : pullDistance;
 
         Vector3 startPos = part.localPosition;
         Vector3 endPos = startPos + direction * distance;
@@ -188,60 +231,62 @@ public class WoodenBoxController : MonoBehaviour
         }
         part.localPosition = endPos;
         part.gameObject.SetActive(false);
+        Debug.Log($"零件 {partType} 动画完成，调用 OnPartPulled");
         OnPartPulled(partType);
+        isPulling = false;
     }
 
     private void OnPartPulled(string partType)
     {
-        if (partType != stepOrder[currentStep]) return;
-        currentStep++;
-        if (currentStep >= stepOrder.Length)
+        Debug.Log($"OnPartPulled 收到零件: {partType}, 当前 completedParts 数量: {completedParts.Count}, 期望零件: {stepOrder[completedParts.Count]}");
+
+        // 检查顺序：必须等于下一个应该完成的零件
+        if (partType != stepOrder[completedParts.Count])
         {
+            Debug.LogWarning($"顺序错误: 收到 {partType}, 期望 {stepOrder[completedParts.Count]}, 忽略");
+            return;
+        }
+
+        completedParts.Add(partType);
+        Debug.Log($"完成零件 {partType}，已完成数量 {completedParts.Count}");
+
+        // 同步更新 currentStep（用于后续顺序提示，但不影响完成判断）
+        currentStep = completedParts.Count;
+
+        // 打印当前 completedParts 列表内容
+        string listStr = "";
+        foreach (var p in completedParts) listStr += p + " ";
+        Debug.Log($"当前已完成零件列表: {listStr}");
+
+        if (completedParts.Count == stepOrder.Length && !hasCompleted)
+        {
+            hasCompleted = true;
             isPuzzleCompleted = true;
             HasUnlockedManuscript = true;
             Debug.Log("解谜完成，点击盒子以查看手札");
         }
+        else
+        {
+            Debug.Log($"尚未完成，还需要 {stepOrder.Length - completedParts.Count} 个零件");
+        }
     }
 
-    // 显示全屏手札面板（改为 public，供 DialogueTreeManager 调用）
     public void ShowManuscriptPanel()
     {
-        if (manuscriptPanel == null)
-        {
-            Debug.LogError("手札面板未指定");
-            return;
-        }
+        if (manuscriptPanel == null) return;
+        ResetManuscriptPages();
         manuscriptPanel.SetActive(true);
-        Debug.Log("手札面板已显示，点击任意位置触发对话");
+        Debug.Log("手札面板已显示");
     }
 
-    // 点击手札面板时触发的对话
-    private void OnManuscriptPanelClicked()
+    public void CloseManuscriptPanel()
     {
-        Debug.Log("点击手札面板，启动对话");
-        // 结束可能残留的对话
-        if (DialogueManager.Instance != null)
-            DialogueManager.Instance.NextOrClose();
-       // if (DialogueTreeManager.Instance != null)
-           // DialogueTreeManager.Instance.EndDialogue();
-
-        // 启动手札对话（使用配置的对话内容）
-        if (DialogueManager.Instance != null && manuscriptDialogueLines != null && manuscriptDialogueLines.Length > 0)
-        {
-            DialogueManager.Instance.StartDialogue("手札", manuscriptDialogueLines);
-        }
-        else if (DialogueTreeManager.Instance != null)
-        {
-            // 如果你使用 DialogueTreeManager 且需要 ID，可以改为 ID 方式
-            // DialogueTreeManager.Instance.StartDialogue(manuscriptDialogueId);
-            Debug.LogWarning("请配置 manuscriptDialogueLines 或使用 ID 启动对话");
-        }
-
-        // 可选：点击后关闭面板（若需要，取消下面注释）
-        // if (manuscriptPanel != null) manuscriptPanel.SetActive(false);
+        if (manuscriptPanel != null && manuscriptPanel.activeSelf)
+            manuscriptPanel.SetActive(false);
     }
 
-    // 调整相机视角以看到所有零件（原有逻辑，保持不变）
+    public bool CanPull(string partType) => partType == stepOrder[currentStep];
+
     private void AdjustCameraToParts()
     {
         Bounds bounds = new Bounds(transform.position, Vector3.zero);
@@ -276,19 +321,5 @@ public class WoodenBoxController : MonoBehaviour
             boxCameraUI.transform.LookAt(boxCenter);
             boxCameraUI.orthographicSize = 5;
         }
-    }
-
-    // 关闭全屏手札面板（供 DialogueTreeManager 调用）
-    public void CloseManuscriptPanel()
-    {
-        if (manuscriptPanel != null && manuscriptPanel.activeSelf)
-        {
-            manuscriptPanel.SetActive(false);
-            Debug.Log("手札面板已关闭");
-        }
-    }
-    public bool CanPull(string partType)
-    {
-        return partType == stepOrder[currentStep];
     }
 }

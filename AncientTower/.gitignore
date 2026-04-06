@@ -1,0 +1,164 @@
+###############################################
+# 本 .gitignore 文件应放在 Unity 项目根目录
+# 最新模板可参考：https://github.com/github/gitignore/blob/main/Unity.gitignore
+###############################################
+.utmp/
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+*.log
+
+###############################################
+# Unity 默认支持 Blender 资源导入，*.blend1 文件无需提交到版本控制
+###############################################
+*.blend1
+*.blend1.meta
+
+###############################################
+# MemoryCaptures 文件夹体积较大，且可能包含敏感数据
+###############################################
+/[Mm]emoryCaptures/
+
+###############################################
+# Recordings 文件夹体积较大
+###############################################
+/[Rr]ecordings/
+
+###############################################
+# 如需忽略 Asset Store 工具插件，请取消下行注释
+# /[Aa]ssets/AssetStoreTools*
+###############################################
+
+###############################################
+# Jetbrains Rider 自动生成的插件
+###############################################
+/[Aa]ssets/Plugins/Editor/JetBrains*
+###############################################
+# Jetbrains Rider 用户个性化设置
+###############################################
+*.DotSettings.user
+
+###############################################
+# Visual Studio 缓存目录
+###############################################
+.vs/
+
+###############################################
+# Gradle 缓存目录
+###############################################
+.gradle/
+
+###############################################
+# VS/MD/Consulo 自动生成的解决方案和项目文件
+###############################################
+ExportedObj/
+.consulo/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+###############################################
+# Unity3D 自动生成的 meta 文件
+###############################################
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+
+###############################################
+# Unity3D 崩溃报告生成的文件
+###############################################
+sysinfo.txt
+
+###############################################
+# Mono 自动生成的文件
+###############################################
+mono_crash.*
+
+###############################################
+# 构建产物
+###############################################
+*.apk
+*.aab
+*.unitypackage
+*.unitypackage.meta
+*.app
+
+###############################################
+# Crashlytics 自动生成的文件
+###############################################
+crashlytics-build.properties
+
+###############################################
+# TestRunner 自动生成的测试文件
+###############################################
+InitTestScene*.unity*
+
+###############################################
+# Addressables 默认忽略项（可根据实际需求调整）
+###############################################
+/ServerData
+/[Aa]ssets/StreamingAssets/aa*
+/[Aa]ssets/AddressableAssetsData/link.xml*
+/[Aa]ssets/Addressables_Temp*
+###############################################
+# Addressables 内容构建会在平台相关子文件夹生成 addressables_content_state.bin 文件
+# 例如：/Assets/AddressableAssetsData/OSX/addressables_content_state.bin
+###############################################
+/[Aa]ssets/AddressableAssetsData/*/*.bin*
+
+###############################################
+# Visual Scripting 自动生成的文件
+###############################################
+/[Aa]ssets/Unity.VisualScripting.Generated/VisualScripting.Flow/UnitOptions.db
+/[Aa]ssets/Unity.VisualScripting.Generated/VisualScripting.Flow/UnitOptions.db.meta
+/[Aa]ssets/Unity.VisualScripting.Generated/VisualScripting.Core/Property Providers
+/[Aa]ssets/Unity.VisualScripting.Generated/VisualScripting.Core/Property Providers.meta
+
+###############################################
+# Play Mode 测试自动生成的场景
+###############################################
+/[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
+
+
+###############################################
+# 保留 Unity 包管理配置文件
+###############################################
+!Packages/manifest.json
+!Packages/packages-lock.json
+
+###############################################
+# 忽略 ProjectSettings 目录
+###############################################
+/ProjectSettings/
+
+###############################################
+# 其他常见操作系统和编辑器垃圾文件
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.env
+.npm/
+.yarn/
+.cache/
+.vscode/
+
+# 忽略 Plastic SCM 元数据文件
+plastic.*
+"Assets/ziti/VonwaonBitmap-16px SDF.asset" 
+"Assets/ziti/VonwaonBitmap-16px SDF.asset" 

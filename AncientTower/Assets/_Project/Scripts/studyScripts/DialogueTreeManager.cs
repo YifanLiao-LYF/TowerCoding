@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -5,6 +6,9 @@ using UnityEngine.SceneManagement;
 public class DialogueTreeManager : MonoBehaviour
 {
     public static DialogueTreeManager Instance;
+    public static bool IsNotebookUnlocked { get; private set; } = false;
+    public static int UnlockedNotebookPageCount { get; private set; } = 0;
+    public static bool HasTriggeredMemory { get; set; } = false;
 
     [Header("CSV文件")]
     public TextAsset csvFile;
@@ -91,9 +95,13 @@ public class DialogueTreeManager : MonoBehaviour
                 // 先处理 effect（除 LongPressQ 外立即执行）
                 if (!string.IsNullOrEmpty(node.effect) && node.effect != "LongPressQ")
                 {
-                    ApplyEffect(node.effect, node.target);  // 传递 target
+                    ApplyEffect(node.effect, node.target);
                 }
-
+                if (currentNodeId == 27)   // 根据您的实际 ID 调整
+                {
+                    HasTriggeredMemory = true;
+                    Debug.Log("记忆已触发，楼梯对话将切换");
+                }
                 if (node.effect == "LongPressQ")
                 {
                     DialogueManager.Instance.StartDialogue(node.speaker, new string[] { node.content });
@@ -103,6 +111,17 @@ public class DialogueTreeManager : MonoBehaviour
                 {
                     DialogueManager.Instance.StartDialogue(node.speaker, new string[] { node.content });
                     DialogueManager.Instance.onNextClicked += OnDialogueNext;
+                }
+
+                // 手札翻页：切换图片
+                if (currentNodeId == 20 || currentNodeId == 21 || currentNodeId == 22)
+                {
+                    WoodenBoxController box = FindObjectOfType<WoodenBoxController>();
+                    if (box != null)
+                    {
+                        int pageIndex = currentNodeId - 19;
+                        box.SetManuscriptPage(pageIndex);
+                    }
                 }
                 break;
             case "&":
@@ -136,7 +155,7 @@ public class DialogueTreeManager : MonoBehaviour
                 ChoiceDialogueManager.Instance.ShowChoice("", options.ToArray(), (index) =>
                 {
                     if (!string.IsNullOrEmpty(effects[index]))
-                        ApplyEffect(effects[index], effectTargets[index]);  // 传递 target
+                        ApplyEffect(effects[index], effectTargets[index]);
                     currentNodeId = targets[index];
                     ProcessCurrentNode();
                 });
@@ -181,6 +200,7 @@ public class DialogueTreeManager : MonoBehaviour
 
     void StartLongPressQ(int nextId)
     {
+        Debug.Log("StartLongPressQ 被调用，nextId = " + nextId);
         if (DialogueManager.Instance.nextButton != null)
             DialogueManager.Instance.nextButton.SetActive(false);
 
@@ -191,6 +211,12 @@ public class DialogueTreeManager : MonoBehaviour
             ProcessCurrentNode();
             return;
         }
+
+        // 强制激活物体并启用组件（解决组件未启用的问题）
+        if (!longPressHandler.gameObject.activeSelf)
+            longPressHandler.gameObject.SetActive(true);
+        if (!longPressHandler.enabled)
+            longPressHandler.enabled = true;
 
         longPressHandler.StartLongPress(() =>
         {
@@ -212,17 +238,17 @@ public class DialogueTreeManager : MonoBehaviour
                 WoodenBoxController box = FindObjectOfType<WoodenBoxController>();
                 if (box != null) box.EnterBoxView();
                 break;
-           
+
             case "ExitBoxView":
                 WoodenBoxController boxCtrl2 = FindObjectOfType<WoodenBoxController>();
                 if (boxCtrl2 != null) boxCtrl2.ExitBoxView();
                 break;
-            case "ExitAndShowManuscript":   // 新增组合效果
+            case "ExitAndShowManuscript":
                 WoodenBoxController box3 = FindObjectOfType<WoodenBoxController>();
                 if (box3 != null)
                 {
-                    box3.ExitBoxView();        // 先退出盒子视图
-                    box3.ShowManuscriptPanel(); // 再显示手札面板
+                    box3.ExitBoxView();
+                    box3.ShowManuscriptPanel();
                 }
                 break;
             case "ShowManuscriptPanel":
@@ -240,12 +266,32 @@ public class DialogueTreeManager : MonoBehaviour
                     Debug.LogError("LoadScene 效果缺少场景名称参数");
                 break;
             case "LoadScene2":
-                // 临时用索引2来加载ZoomingInTower1场景
                 BackgroundManager.Instance.FadeAndLoadScene2(target);
                 break;
             case "CloseManuscriptPanel":
                 box = FindObjectOfType<WoodenBoxController>();
                 if (box != null) box.CloseManuscriptPanel();
+                break;
+            case "UnlockNotebook":
+                IsNotebookUnlocked = true;
+                break;
+            case "UnlockNotebookPage":
+                if (int.TryParse(target, out int targetPage))
+                {
+                    if (targetPage > UnlockedNotebookPageCount)
+                        UnlockedNotebookPageCount = targetPage;
+                    var notebookCtrl = FindObjectOfType<NotebookController>();
+                    if (notebookCtrl != null && notebookCtrl.gameObject.activeInHierarchy)
+                        notebookCtrl.RefreshDisplay();
+                }
+                break;
+            case "FadeAndHideCharacter":
+                if (BackgroundManager.Instance != null)
+                {
+                    BackgroundManager.Instance.FadeToNewBackground();
+                    // 延迟隐藏人物和相机，等待淡入淡出完成
+                    StartCoroutine(HideCharacterAndCameraAfterDelay(BackgroundManager.Instance.fadeDuration));
+                }
                 break;
         }
     }
@@ -255,5 +301,65 @@ public class DialogueTreeManager : MonoBehaviour
         isInDialogue = false;
         if (ChoiceDialogueManager.Instance != null)
             ChoiceDialogueManager.Instance.choicePanel.SetActive(false);
+    }
+    private IEnumerator HideCharacterAndCameraAfterDelay(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+
+        // 1. 隐藏人物物体
+        GameObject character = GameObject.Find("Player_Shenling");
+        if (character != null) character.SetActive(false);
+
+        // 2. 禁用相机跟随，并重置相机位置
+        var vcam = FindObjectOfType<Cinemachine.CinemachineVirtualCamera>();
+        if (vcam != null)
+        {
+            vcam.Follow = null;
+            vcam.transform.position = new Vector3(0, 0, -10);
+        }
+        else
+        {
+            Camera.main.transform.position = new Vector3(0, 0, -10);
+        }
+
+        // ========== 3. 关闭所有 UI ==========
+        CloseAllUI();
+    }
+
+    // 新增方法：关闭所有 UI 界面
+    private void CloseAllUI()
+    {
+        // 1. 关闭对话面板（使用已有的 EndDialogue 方法）
+        if (DialogueManager.Instance != null)
+            DialogueManager.Instance.EndDialogue();
+
+        // 2. 关闭选择面板
+        if (ChoiceDialogueManager.Instance != null && ChoiceDialogueManager.Instance.choicePanel != null)
+            ChoiceDialogueManager.Instance.choicePanel.SetActive(false);
+
+        // 3. 关闭平板（通过查找 TabletController 并调用 HideTablet 方法）
+        TabletController tablet = FindObjectOfType<TabletController>();
+        if (tablet != null)
+        {
+            // 如果有 HideTablet 方法则调用，否则尝试禁用平板 Canvas
+            var hideMethod = tablet.GetType().GetMethod("HideTablet");
+            if (hideMethod != null)
+                hideMethod.Invoke(tablet, null);
+            else
+            {
+                GameObject tabletCanvas = GameObject.Find("TabletCanvas");
+                if (tabletCanvas != null) tabletCanvas.SetActive(false);
+            }
+        }
+
+        // 4. 关闭笔记本面板
+        NotebookController notebook = FindObjectOfType<NotebookController>();
+        if (notebook != null && notebook.gameObject.activeSelf)
+            notebook.gameObject.SetActive(false);
+
+        GameObject mainUI = GameObject.Find("OpenTableCanvas"); 
+        if (mainUI != null)
+            mainUI.SetActive(false);
+
     }
 }
